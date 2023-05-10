@@ -406,6 +406,8 @@ const handleInput = async (event: Event) => {
   setCursor()
 }
 
+// 当触发input中的change事件时，会触发自定义的change事件 这样就可以在el-input组件上通过@change代替原生input事件
+// 相当于做了一层中转，也就是说input上的所有事件，都必须通过这种方式去中转
 const handleChange = (event: Event) => {
   emit('change', (event.target as TargetElement).value)
 }
