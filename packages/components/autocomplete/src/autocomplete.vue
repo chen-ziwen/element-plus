@@ -13,6 +13,7 @@
     trigger="click"
     :transition="`${ns.namespace.value}-zoom-in-top`"
     persistent
+    role="listbox"
     @before-show="onSuggestionShow"
     @hide="onHide"
   >
@@ -32,6 +33,7 @@
         :disabled="disabled"
         :name="name"
         :model-value="modelValue"
+        :aria-label="ariaLabel"
         @input="handleInput"
         @change="handleChange"
         @focus="handleFocus"
@@ -76,9 +78,11 @@
           role="listbox"
         >
           <li v-if="suggestionLoading">
-            <el-icon :class="ns.is('loading')">
-              <Loading />
-            </el-icon>
+            <slot name="loading">
+              <el-icon :class="ns.is('loading')">
+                <Loading />
+              </el-icon>
+            </slot>
           </li>
           <template v-else>
             <li
@@ -102,7 +106,7 @@
 <script lang="ts" setup>
 import {
   computed,
-  nextTick,
+  onBeforeUnmount,
   onMounted,
   ref,
   useAttrs as useRawAttrs,
@@ -110,8 +114,8 @@ import {
 import { debounce } from 'lodash-unified'
 import { onClickOutside } from '@vueuse/core'
 import { Loading } from '@element-plus/icons-vue'
-import { useAttrs, useNamespace } from '@element-plus/hooks'
-import { generateId, isArray, throwError } from '@element-plus/utils'
+import { useAttrs, useId, useNamespace } from '@element-plus/hooks'
+import { isArray, throwError } from '@element-plus/utils'
 import {
   CHANGE_EVENT,
   INPUT_EVENT,
@@ -125,7 +129,7 @@ import { useFormDisabled } from '@element-plus/components/form'
 import { autocompleteEmits, autocompleteProps } from './autocomplete'
 import type { AutocompleteData } from './autocomplete'
 
-import type { StyleValue } from 'vue'
+import type { Ref, StyleValue } from 'vue'
 import type { TooltipInstance } from '@element-plus/components/tooltip'
 import type { InputInstance } from '@element-plus/components/input'
 
@@ -157,7 +161,7 @@ const activated = ref(false)
 const suggestionDisabled = ref(false)
 const loading = ref(false)
 
-const listboxId = computed(() => ns.b(String(generateId())))
+const listboxId = useId()
 const styles = computed(() => rawAttrs.style as StyleValue)
 
 const suggestionVisible = computed(() => {
@@ -176,8 +180,7 @@ const refInput = computed<HTMLInputElement[]>(() => {
   return []
 })
 
-const onSuggestionShow = async () => {
-  await nextTick()
+const onSuggestionShow = () => {
   if (suggestionVisible.value) {
     dropdownWidth.value = `${inputRef.value!.$el.offsetWidth}px`
   }
@@ -353,8 +356,14 @@ const highlight = (index: number) => {
   )
 }
 
-onClickOutside(listboxRef, () => {
+const stopHandle = onClickOutside(listboxRef, () => {
+  // Prevent closing if focus is inside popper content
+  if (popperRef.value?.isFocusInsideContent()) return
   suggestionVisible.value && close()
+})
+
+onBeforeUnmount(() => {
+  stopHandle?.()
 })
 
 onMounted(() => {
@@ -370,7 +379,21 @@ onMounted(() => {
   readonly = (inputRef.value as any).ref!.hasAttribute('readonly')
 })
 
-defineExpose({
+defineExpose<{
+  highlightedIndex: Ref<number>
+  activated: Ref<boolean>
+  loading: Ref<boolean>
+  inputRef: Ref<InputInstance | undefined>
+  popperRef: Ref<TooltipInstance | undefined>
+  suggestions: Ref<AutocompleteData>
+  handleSelect: (item: any) => void
+  handleKeyEnter: () => void
+  focus: () => void
+  blur: () => void
+  close: () => void
+  highlight: (index: number) => void
+  getData: (queryString: string) => void
+}>({
   /** @description the index of the currently highlighted item */
   highlightedIndex,
   /** @description autocomplete whether activated */
@@ -395,5 +418,7 @@ defineExpose({
   close,
   /** @description highlight an item in a suggestion */
   highlight,
+  /** @description loading suggestion list */
+  getData,
 })
 </script>
